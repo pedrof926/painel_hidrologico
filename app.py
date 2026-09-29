@@ -50,11 +50,11 @@ exposição, inundação, isolamento ou risco epidemiológico.
 """
 
 from pathlib import Path
+import os
 import base64
 from functools import lru_cache
 import math
 import warnings
-import os
 
 import numpy as np
 import pandas as pd
@@ -79,32 +79,41 @@ warnings.filterwarnings("ignore")
 
 
 # =============================================================================
-# CAMINHOS - VERSÃO PORTÁVEL / RENDER
+# CAMINHOS - PORTÁVEIS (GITHUB / RENDER / LOCAL)
 # =============================================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
 PASTA_DADOS = BASE_DIR / "dados"
+PASTA_DADOS_ANA = BASE_DIR / "dados_ana"
+
 ARQ_ESTACOES = PASTA_DADOS / "estacoes_atual.parquet"
 ARQ_HISTORICO = PASTA_DADOS / "cotas_historico.parquet"
 
-PASTA_DADOS_ANA = BASE_DIR / "dados_ana"
 ARQ_ANA_ATUAL = PASTA_DADOS_ANA / "ana_estacoes_com_cota_atual.parquet"
 ARQ_ANA_REFERENCIA_MENSAL = PASTA_DADOS_ANA / "ana_referencia_mensal.parquet"
 
 ARQ_POLOS = BASE_DIR / "polos_base.json"
 
-# BHO250 não é enviada ao Render nesta primeira versão.
-# A estrutura permanece preparada para reativação futura.
+# BHO250 não é enviado ao Render nesta primeira versão.
+# Se o arquivo for adicionado futuramente à raiz, o painel volta a utilizá-lo.
 ARQ_BHO = BASE_DIR / "geoft_bho_trecho_drenagem.gpkg"
 CAMADA_BHO = "pgh_output.geoft_bho_trecho_drenagem"
 BHO_DISPONIVEL = ARQ_BHO.exists()
 
-# GEOJSON
-ARQ_MUNICIPIOS = BASE_DIR / "municipios_br.geojson"
-ARQ_UBS = BASE_DIR / "ubs.geojson"
-ARQ_UBSI = BASE_DIR / "ubsi.geojson"
-ARQ_UPA = BASE_DIR / "upa.geojson"
+
+def localizar_geojson(nome):
+    arquivo = BASE_DIR / nome
+    if arquivo.exists():
+        return arquivo
+    raise FileNotFoundError(f"\nArquivo não encontrado: {arquivo}")
+
+
+ARQ_MUNICIPIOS = localizar_geojson("municipios_br.geojson")
+ARQ_UBS = localizar_geojson("ubs.geojson")
+ARQ_UBSI = localizar_geojson("ubsi.geojson")
+ARQ_UPA = localizar_geojson("upa.geojson")
+
 
 # =============================================================================
 # SERVIDOR
@@ -112,7 +121,7 @@ ARQ_UPA = BASE_DIR / "upa.geojson"
 
 HOST = "0.0.0.0"
 
-PORT = int(os.environ.get("PORT", 8067))
+PORT = int(os.environ.get("PORT", "8067"))
 
 
 # =============================================================================
@@ -640,10 +649,7 @@ print(
 # PREVISÃO SAZONAL DE VAZÃO - CEMADEN - SETEMBRO/2026
 # =============================================================================
 
-ARQ_PREVISAO_CEMADEN = (
-    DOWNLOADS
-    / "previsao_hidrologia_cemaden_setembro.png"
-)
+ARQ_PREVISAO_CEMADEN = BASE_DIR / "previsao_hidrologia_cemaden_setembro.png"
 
 
 def arquivo_para_data_uri(caminho):
@@ -2746,6 +2752,8 @@ def carregar_bho_local(
     raio_km,
 ):
 
+    # No Render, o BHO250 fica fora do repositório por causa do tamanho.
+    # Retornamos uma camada vazia para manter o restante do painel operacional.
     if not BHO_DISPONIVEL:
         return gpd.GeoDataFrame(geometry=[], crs=CRS_GEO)
 
@@ -5104,6 +5112,7 @@ app = Dash(
     __name__
 )
 
+# Servidor Flask exposto para o Gunicorn/Render.
 server = app.server
 
 
@@ -7137,10 +7146,8 @@ def atualizar_analise(
 
             html.Div(
                 (
-                    "Camada BHO250 não incluída nesta versão online do painel."
-                    if not BHO_DISPONIVEL
-                    else
-                    "Não foi possível associar a estação a um trecho da BHO250 neste raio."
+                    "Não foi possível associar a estação a um "
+                    "trecho da BHO250 neste raio."
                 )
             ),
         ]
